@@ -45,7 +45,7 @@ mdify is a  SaaS application that converts uploaded documents to Markdown with:
 
 ---
 
-## Quick Start
+## Quick Start (Local Development)
 
 ```bash
 # 1. Clone the repository
@@ -54,13 +54,13 @@ cd mdify
 
 # 2. Set up environment
 cp .env.example .env
-# Edit .env if you need to change default ports
 
-# 3. Start the full stack (takes 2–5 min on first run; ClamAV downloads ~300 MB of signatures)
+# 3. Start the full local stack (frontend, backend, worker, redis, clamav)
+# (Takes 2–5 min on first run while ClamAV downloads ~300 MB of virus signatures)
 docker compose up --build
 
-# 4. Open the app
-open http://localhost:3000
+# 4. Open the application in your browser
+# Open http://localhost:3000
 ```
 
 > ⚠️ **First run note**: ClamAV runs `freshclam` on startup to download virus signatures (~300 MB). The `worker` and `backend` services will wait for ClamAV to become healthy before starting. This may take 2–3 minutes on first run.
@@ -71,9 +71,10 @@ open http://localhost:3000
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FRONTEND_PORT` | `3000` | Host port for the React SPA |
+| `FRONTEND_PORT` | `3000` | Host port for the React SPA (local compose only) |
 | `BACKEND_PORT` | `8000` | Host port for the FastAPI REST API |
-| `BACKEND_PUBLIC_URL` | `http://localhost:8000` | Public URL of the API (used by Nginx proxy) |
+| `BACKEND_PUBLIC_URL` | `http://localhost:8000` | Public URL of the API (used by Nginx proxy in local compose) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Comma-separated list of allowed frontend origins (e.g. your Vercel domains) |
 | `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL for Celery broker |
 | `CELERY_BROKER_URL` | `redis://redis:6379/0` | Celery broker URL |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | Celery result backend URL |
@@ -126,12 +127,11 @@ docker compose run --rm backend poetry run pytest --cov=src -v
 # Run just unit tests
 docker compose run --rm backend poetry run pytest tests/unit/ -v
 
-# Run frontend tests
-docker compose run --rm frontend npm test
+# Run frontend tests on the host
+cd frontend && npm test
 
-# Run E2E tests (requires full stack)
-docker compose up -d
-docker compose run --rm frontend npx playwright test
+# Run E2E Playwright tests on the host (requires backend docker stack running in background)
+cd frontend && npx playwright test
 ```
 
 ### On host (with Python 3.11+ and Node 20+)

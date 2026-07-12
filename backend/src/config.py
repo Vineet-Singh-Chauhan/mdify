@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = Field(default=50, alias="MAX_UPLOAD_SIZE_MB")
     purge_interval_seconds: int = Field(default=600, alias="PURGE_INTERVAL_SECONDS")
     conversion_base_dir: str = Field(default="/tmp/conversions", alias="CONVERSION_BASE_DIR")
+    cors_allowed_origins: str = Field(default="http://localhost:3000", alias="CORS_ALLOWED_ORIGINS")
 
     @property
     def max_upload_size_bytes(self) -> int:

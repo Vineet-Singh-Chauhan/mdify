@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TaskState } from '../types';
-import { getSSEUrl } from '../api';
+import { getSSEUrl, getSSEBatchUrl } from '../api';
 
-export function useConversionTask(taskId: string | null): TaskState | null {
+export function useConversionTask(
+  taskId: string | null,
+  isBatch: boolean = false
+): TaskState | null {
   const [state, setState] = useState<TaskState | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (!taskId) return;
 
-    const es = new EventSource(getSSEUrl(taskId));
+    const url = isBatch ? getSSEBatchUrl(taskId) : getSSEUrl(taskId);
+    const es = new EventSource(url);
     esRef.current = es;
 
     es.onmessage = (ev: MessageEvent<string>) => {

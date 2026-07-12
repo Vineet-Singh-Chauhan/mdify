@@ -150,4 +150,11 @@ def aggregate_batch_results(batch_id: str, task_ids: list[str]) -> dict[str, obj
     zip_path.write_bytes(batch_zip)
 
     logger.info("[pipeline] Batch %s aggregated: %d tasks.", batch_id, len(task_ids))
+
+    # Enqueue a purge task for the batch directory (FR-010 / SC-003 compliance)
+    purge_workspace_task.apply_async(
+        args=[str(batch_output)],
+        countdown=settings.purge_interval_seconds,
+    )
+
     return {"batch_id": batch_id, "status": "success"}

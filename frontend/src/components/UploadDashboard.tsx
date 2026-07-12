@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { Upload, FileText, Package, Download, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
-import { uploadFile, uploadBatch, getDownloadUrl, fetchStats, incrementVisitorCount } from '../api';
+import { uploadFile, uploadBatch, getDownloadUrl, getBatchDownloadUrl, fetchStats, incrementVisitorCount } from '../api';
 import { useConversionTask } from '../hooks/useConversionTask';
 import { ProgressTimeline } from './ProgressTimeline';
 import type { OutputMode } from '../types';
@@ -19,7 +19,7 @@ export const UploadDashboard: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [stats, setStats] = useState<{ visitors: number; conversions: number } | null>(null);
-  const taskState = useConversionTask(primaryTaskId);
+  const taskState = useConversionTask(batchId || primaryTaskId, !!batchId);
 
   useEffect(() => {
     const hasVisited = localStorage.getItem('mdify-visited');
@@ -116,6 +116,7 @@ export const UploadDashboard: React.FC = () => {
         <p className="text-white/50 mt-3 text-lg font-light">
           Convert any document to clean Markdown
         </p>
+        
       </div>
 
       {/* Main card */}
@@ -196,9 +197,19 @@ export const UploadDashboard: React.FC = () => {
             </ul>
 
             {/* Progress */}
-            {taskState && primaryTaskId && (
+            {(primaryTaskId || batchId) && (
               <div className="bg-surface-700/40 rounded-xl p-4">
-                <ProgressTimeline state={taskState} />
+                <ProgressTimeline
+                  state={taskState || {
+                    task_id: (batchId || primaryTaskId)!,
+                    batch_id: batchId,
+                    original_name: files.length > 1 ? `${files.length} files` : files[0]?.file.name || 'document',
+                    output_mode: outputMode,
+                    stage: 'UPLOADED',
+                    status: 'ACTIVE',
+                    error_reason: null
+                  }}
+                />
               </div>
             )}
 
@@ -239,7 +250,7 @@ export const UploadDashboard: React.FC = () => {
           {canDownload && primaryTaskId && (
             <a
               id="download-btn"
-              href={getDownloadUrl(primaryTaskId)}
+              href={batchId ? getBatchDownloadUrl(batchId) : getDownloadUrl(primaryTaskId)}
               download
               className="btn-primary flex-1 flex items-center justify-center gap-2"
             >
@@ -250,6 +261,11 @@ export const UploadDashboard: React.FC = () => {
         </div>
       </div>
 
+<div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2 mt-4 text-amber-400/90 text-xs max-w-md mx-auto">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+          <span>Note: Scanned documents (OCR) and raw images are not supported.</span>
+        </div>
+        
       {/* Stats Section */}
       {stats && (
         <div className="mt-6 flex gap-6 text-xs text-white/30 font-mono">

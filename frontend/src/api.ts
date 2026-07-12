@@ -43,8 +43,16 @@ export function getDownloadUrl(taskId: string): string {
   return `${BASE}/tasks/${taskId}/download`;
 }
 
+export function getBatchDownloadUrl(batchId: string): string {
+  return `${BASE}/batches/${batchId}/download`;
+}
+
 export function getSSEUrl(taskId: string): string {
   return `${BASE}/events/${taskId}`;
+}
+
+export function getSSEBatchUrl(batchId: string): string {
+  return `${BASE}/events/batch/${batchId}`;
 }
 
 export async function fetchStats(): Promise<{ visitors: number; conversions: number }> {

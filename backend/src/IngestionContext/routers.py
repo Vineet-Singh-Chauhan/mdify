@@ -24,8 +24,8 @@ from src.exceptions import (
 )
 from src.IngestionContext.validator import validate_file_signature
 from src.IngestionContext.sandbox import SandboxManager
-from src.IngestionContext.tracker import ProgressTracker, TaskStatus
-from src.ParsingContext.tasks import run_conversion
+from src.IngestionContext.tracker import ProgressTracker, TaskStatus, PipelineStage, get_redis
+from src.ParsingContext.tasks import run_conversion, aggregate_batch_results
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -137,6 +137,16 @@ async def upload_batch(
         )
         task_ids.append(task_id)
 
+    get_redis().setex(
+        f"mdify:batch:{batch_id}",
+        settings.purge_interval_seconds + 60,
+        json.dumps(task_ids)
+    )
+
+    aggregate_batch_results.apply_async(
+        args=[batch_id, task_ids]
+    )
+
     return BatchUploadResponse(batch_id=batch_id, task_ids=task_ids, status="queued")
 
 
@@ -188,6 +198,30 @@ async def download_result(
     )
 
 
+@router.get("/batches/{batch_id}/download", tags=["conversion"])
+async def download_batch_result(
+    batch_id: str,
+    sandbox: SandboxManager = Depends(get_sandbox),
+) -> FileResponse:
+    """Download the aggregated ZIP package for a completed batch conversion."""
+    # Wait up to 15 seconds for the batch aggregation Celery task to finish writing the zip file
+    zip_path = Path(settings.conversion_base_dir) / batch_id / f"Batch_Conversion_{batch_id[:8]}.zip"
+    
+    for _ in range(30):
+        if zip_path.exists():
+            break
+        await asyncio.sleep(0.5)
+        
+    if not zip_path.exists():
+        raise TaskNotFoundError()
+        
+    return FileResponse(
+        path=str(zip_path),
+        filename=zip_path.name,
+        media_type="application/zip",
+    )
+
+
 # ---------------------------------------------------------------------------
 # SSE progress stream (FR-008)
 # ---------------------------------------------------------------------------
@@ -215,6 +249,79 @@ async def stream_progress(task_id: str, request: Request) -> StreamingResponse:
                 break
             await asyncio.sleep(0.3)
 
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/events/batch/{batch_id}", tags=["streaming"])
+async def stream_batch_progress(batch_id: str, request: Request) -> StreamingResponse:
+    """Server-Sent Events stream for real-time batch progress."""
+    async def event_generator() -> AsyncGenerator[str, None]:
+        raw_tasks = get_redis().get(f"mdify:batch:{batch_id}")
+        if not raw_tasks:
+            yield f"data: {json.dumps({'error': 'batch_not_found'})}\n\n"
+            return
+            
+        task_ids = json.loads(raw_tasks)
+        last_aggregated_state: dict[str, object] | None = None
+        
+        while True:
+            if await request.is_disconnected():
+                break
+                
+            states = []
+            for task_id in task_ids:
+                tracker = ProgressTracker(task_id)
+                state = tracker.get()
+                if state:
+                    states.append(state)
+                    
+            if not states:
+                yield f"data: {json.dumps({'error': 'no_tasks_found'})}\n\n"
+                break
+                
+            statuses = [s.get("status") for s in states]
+            stages = [s.get("stage") for s in states]
+            
+            if all(st == TaskStatus.SUCCESS for st in statuses):
+                overall_status = TaskStatus.SUCCESS
+            elif any(st == TaskStatus.FAILURE for st in statuses):
+                overall_status = TaskStatus.FAILURE
+            else:
+                overall_status = TaskStatus.ACTIVE
+                
+            stage_priority = {
+                PipelineStage.UPLOADED: 0,
+                PipelineStage.SCANNING: 1,
+                PipelineStage.PARSING: 2,
+                PipelineStage.RESOLVING_ASSETS: 3,
+                PipelineStage.PACKAGING: 4,
+            }
+            min_stage = min(stages, key=lambda s: stage_priority.get(s, 0))
+            
+            aggregated_state = {
+                "task_id": batch_id,
+                "status": overall_status,
+                "stage": min_stage,
+                "error_reason": next((s.get("error_reason") for s in states if s.get("error_reason")), None),
+            }
+            
+            if aggregated_state != last_aggregated_state:
+                yield f"data: {json.dumps(aggregated_state)}\n\n"
+                last_aggregated_state = aggregated_state
+                
+            if overall_status in (TaskStatus.SUCCESS, TaskStatus.FAILURE):
+                break
+                
+            await asyncio.sleep(0.5)
+            
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+.npm/
+
+# Environment
+.env
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# IDEs
+.vscode/
+.idea/
+
+# Docker
+*.override.yml
+
+# Test artifacts
+/tmp/
+
+# agents
+.agents/
+.specify/
+specs/

@@ -1,0 +1,6 @@
+# Sample Document
+
+This is a sample plain text document used for E2E testing.
+
+## Section 1
+Content for section one.

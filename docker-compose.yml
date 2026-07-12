@@ -1,0 +1,131 @@
+version: "3.9"
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - mdify_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${BACKEND_PUBLIC_URL:-http://localhost:8000}
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - mdify_net
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - conversions_data:/tmp/conversions
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CLAMAV_HOST=${CLAMAV_HOST:-clamav}
+      - CLAMAV_PORT=${CLAMAV_PORT:-3310}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+      - PURGE_INTERVAL_SECONDS=${PURGE_INTERVAL_SECONDS:-600}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    entrypoint: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+    networks:
+      - mdify_net
+    depends_on:
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    volumes:
+      - conversions_data:/tmp/conversions
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CLAMAV_HOST=${CLAMAV_HOST:-clamav}
+      - CLAMAV_PORT=${CLAMAV_PORT:-3310}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+      - PURGE_INTERVAL_SECONDS=${PURGE_INTERVAL_SECONDS:-600}
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - mdify_net
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:latest
+    networks:
+      - mdify_net
+    volumes:
+      - clamav_db:/var/lib/clamav
+      - conversions_data:/tmp/conversions:ro
+    environment:
+      - FRESHCLAM_CHECKS_PER_DAY=24
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.25"
+          memory: 512M
+    restart: unless-stopped
+
+networks:
+  mdify_net:
+    driver: bridge
+    internal: false
+
+volumes:
+  conversions_data:
+    name: mdify_conversions_data
+  redis_data:
+    name: mdify_redis_data
+  clamav_db:
+    name: mdify_clamav_db

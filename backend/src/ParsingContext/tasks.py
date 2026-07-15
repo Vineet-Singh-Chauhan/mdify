@@ -83,12 +83,11 @@ def run_conversion(self: Task, task_id: str, filename: str, output_mode: str) ->
             output_path.write_bytes(zip_bytes)
 
         tracker.advance(PipelineStage.PACKAGING, TaskStatus.SUCCESS)
-        if ext == ".pdf":
-            try:
-                from src.IngestionContext.stats import increment_conversions
-                increment_conversions()
-            except Exception:
-                pass
+        try:
+            from src.IngestionContext.stats import increment_conversions
+            increment_conversions()
+        except Exception:
+            pass
         logger.info("[pipeline] Task %s completed successfully.", task_id)
         return {"task_id": task_id, "status": "success"}
 

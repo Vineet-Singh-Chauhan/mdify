@@ -270,7 +270,7 @@ export const UploadDashboard: React.FC = () => {
       {stats && (
         <div className="mt-6 flex gap-6 text-xs text-white/30 font-mono">
           <div>👥 Visitors: <span className="text-accent-400 font-semibold">{stats.visitors}</span></div>
-          <div>📄 PDFs Converted: <span className="text-success font-semibold">{stats.conversions}</span></div>
+          <div>📄 Documents Converted: <span className="text-success font-semibold">{stats.conversions}</span></div>
         </div>
       )}
 

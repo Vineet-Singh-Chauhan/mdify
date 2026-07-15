@@ -46,3 +46,50 @@ def test_unsupported_extension_rejected() -> None:
 def test_spoofed_pdf_with_html_content() -> None:
     with pytest.raises(MagicNumberMismatchError):
         validate_file_signature("document.pdf", b"<html><body>Not a PDF</body></html>")
+
+
+def test_valid_xlsx_accepted() -> None:
+    xlsx_magic = b"PK\x03\x04" + b"\x00" * 20
+    result = validate_file_signature("report.xlsx", xlsx_magic)
+    assert result is not None
+
+
+def test_valid_csv_accepted() -> None:
+    result = validate_file_signature("data.csv", b"col1,col2\nval1,val2")
+    assert result is not None
+
+
+def test_valid_json_accepted() -> None:
+    result = validate_file_signature("config.json", b'{"key": "value"}')
+    assert result is not None
+
+
+def test_valid_xml_accepted() -> None:
+    result = validate_file_signature("data.xml", b"<root><item>test</item></root>")
+    assert result is not None
+
+
+def test_valid_html_accepted() -> None:
+    result = validate_file_signature("index.html", b"<html><body>hello</body></html>")
+    assert result is not None
+
+
+def test_non_zip_as_docx_rejected() -> None:
+    with pytest.raises(MagicNumberMismatchError):
+        validate_file_signature("report.docx", b"Not a zip file")
+
+
+def test_non_zip_as_xlsx_rejected() -> None:
+    with pytest.raises(MagicNumberMismatchError):
+        validate_file_signature("report.xlsx", b"Not a zip file")
+
+
+def test_zip_spoofed_as_json_rejected() -> None:
+    with pytest.raises(MagicNumberMismatchError):
+        validate_file_signature("exploit.json", b"PK\x03\x04filecontent")
+
+
+def test_pdf_spoofed_as_xml_rejected() -> None:
+    with pytest.raises(MagicNumberMismatchError):
+        validate_file_signature("exploit.xml", b"%PDF-1.4filecontent")
+

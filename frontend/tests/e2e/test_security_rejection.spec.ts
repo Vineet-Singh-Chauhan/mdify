@@ -37,4 +37,33 @@ test.describe('Security: Spoofed file rejection', () => {
     expect(text).not.toContain('clamd');
     expect(text?.toLowerCase()).not.toContain('exception');
   });
+
+  test('DOCX spoofing error is displayed with generic user message', async ({ page }) => {
+    await page.route('/api/v1/upload', route => {
+      route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'The uploaded file could not be validated. Please check the file and try again.',
+        }),
+      });
+    });
+
+    const fileInput = page.locator('#file-input');
+    await fileInput.setInputFiles({
+      name: 'malware.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      buffer: Buffer.from('MZ\x00\x00'),  // EXE magic in DOCX wrapper
+    });
+
+    await page.locator('#convert-btn').click();
+
+    const alert = page.locator('[role="alert"]');
+    await expect(alert).toBeVisible();
+
+    const text = await alert.textContent();
+    expect(text).not.toContain('MagicNumberMismatchError');
+    expect(text).not.toContain('stack trace');
+  });
 });
+

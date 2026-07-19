@@ -51,7 +51,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    entrypoint: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+    entrypoint: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2", "--max-tasks-per-child=50"]
     networks:
       - mdify_net
     depends_on:
@@ -75,10 +75,10 @@ services:
       resources:
         limits:
           cpus: "2.0"
-          memory: 1G
+          memory: 2G
         reservations:
           cpus: "0.5"
-          memory: 256M
+          memory: 512M
     restart: unless-stopped
 
   redis:

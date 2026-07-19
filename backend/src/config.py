@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     celery_result_backend: str = Field(default="redis://localhost:6379/1", alias="CELERY_RESULT_BACKEND")
     clamav_host: str = Field(default="localhost", alias="CLAMAV_HOST")
     clamav_port: int = Field(default=3310, alias="CLAMAV_PORT")
+    clamav_scan_timeout: int = Field(default=120, alias="CLAMAV_SCAN_TIMEOUT")
     max_upload_size_mb: int = Field(default=50, alias="MAX_UPLOAD_SIZE_MB")
     purge_interval_seconds: int = Field(default=600, alias="PURGE_INTERVAL_SECONDS")
     conversion_base_dir: str = Field(default="/tmp/conversions", alias="CONVERSION_BASE_DIR")

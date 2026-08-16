@@ -82,6 +82,7 @@ docker compose up --build
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Maximum file upload size in MB |
 | `PURGE_INTERVAL_SECONDS` | `600` | Seconds after completion before files are deleted |
+| `SSE_HEARTBEAT_INTERVAL_SECONDS` | `15` | Seconds between SSE heartbeat comments during idle conversion stages |
 
 Copy `.env.example` to `.env` and modify as needed. The `.env` file is git-ignored.
 

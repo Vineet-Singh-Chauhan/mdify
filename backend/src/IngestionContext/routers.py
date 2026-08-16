@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import AsyncGenerator
@@ -231,6 +232,7 @@ async def stream_progress(task_id: str, request: Request) -> StreamingResponse:
     """Server-Sent Events stream for real-time task progress."""
     async def event_generator() -> AsyncGenerator[str, None]:
         last_stage: str | None = None
+        last_sent = time.monotonic()
         while True:
             if await request.is_disconnected():
                 break
@@ -243,10 +245,17 @@ async def stream_progress(task_id: str, request: Request) -> StreamingResponse:
             if current_stage != last_stage:
                 yield f"data: {json.dumps(state)}\n\n"
                 last_stage = current_stage
+                last_sent = time.monotonic()
             status = state.get("status")
             if status in (TaskStatus.SUCCESS, TaskStatus.FAILURE):
                 yield f"data: {json.dumps(state)}\n\n"
                 break
+                
+            now = time.monotonic()
+            if now - last_sent >= settings.sse_heartbeat_interval_seconds:
+                yield ": heartbeat\n\n"
+                last_sent = now
+
             await asyncio.sleep(0.3)
 
     return StreamingResponse(
@@ -271,6 +280,7 @@ async def stream_batch_progress(batch_id: str, request: Request) -> StreamingRes
             
         task_ids = json.loads(raw_tasks)
         last_aggregated_state: dict[str, object] | None = None
+        last_sent = time.monotonic()
         
         while True:
             if await request.is_disconnected():
@@ -316,9 +326,15 @@ async def stream_batch_progress(batch_id: str, request: Request) -> StreamingRes
             if aggregated_state != last_aggregated_state:
                 yield f"data: {json.dumps(aggregated_state)}\n\n"
                 last_aggregated_state = aggregated_state
+                last_sent = time.monotonic()
                 
             if overall_status in (TaskStatus.SUCCESS, TaskStatus.FAILURE):
                 break
+                
+            now = time.monotonic()
+            if now - last_sent >= settings.sse_heartbeat_interval_seconds:
+                yield ": heartbeat\n\n"
+                last_sent = now
                 
             await asyncio.sleep(0.5)
             

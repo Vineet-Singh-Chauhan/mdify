@@ -1,6 +1,6 @@
 """Application configuration loaded from environment variables."""
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     purge_interval_seconds: int = Field(default=600, alias="PURGE_INTERVAL_SECONDS")
     conversion_base_dir: str = Field(default="/tmp/conversions", alias="CONVERSION_BASE_DIR")
     cors_allowed_origins: str = Field(default="http://localhost:3000", alias="CORS_ALLOWED_ORIGINS")
+    sse_heartbeat_interval_seconds: int = Field(default=15, alias="SSE_HEARTBEAT_INTERVAL_SECONDS")
+
+    @field_validator("sse_heartbeat_interval_seconds")
+    @classmethod
+    def validate_heartbeat_interval(cls, v: int) -> int:
+        if not (5 <= v <= 60):
+            raise ValueError("SSE_HEARTBEAT_INTERVAL_SECONDS must be between 5 and 60")
+        return v
 
     @property
     def max_upload_size_bytes(self) -> int:

@@ -19,7 +19,7 @@ export const UploadDashboard: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [stats, setStats] = useState<{ visitors: number; conversions: number } | null>(null);
-  const taskState = useConversionTask(batchId || primaryTaskId, !!batchId);
+  const { state: taskState, isReconnecting } = useConversionTask(batchId || primaryTaskId, !!batchId);
 
   useEffect(() => {
     const hasVisited = localStorage.getItem('mdify-visited');
@@ -198,7 +198,12 @@ export const UploadDashboard: React.FC = () => {
 
             {/* Progress */}
             {(primaryTaskId || batchId) && (
-              <div className="bg-surface-700/40 rounded-xl p-4">
+              <div className="bg-surface-700/40 rounded-xl p-4 relative">
+                {isReconnecting && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-surface-900/60 rounded-xl backdrop-blur-sm z-10">
+                    <span className="text-white/70 text-sm font-mono animate-pulse">Reconnecting…</span>
+                  </div>
+                )}
                 <ProgressTimeline
                   state={taskState || {
                     task_id: (batchId || primaryTaskId)!,

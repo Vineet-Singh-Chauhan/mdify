@@ -1,5 +1,5 @@
 """Integration tests for SSE progress event stream."""
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from src.main import app
 
@@ -51,3 +51,33 @@ def test_sse_stream_emits_json_stage_events() -> None:
                         assert "status" in data
                         assert "task_id" in data
                         return
+
+def test_sse_stream_with_heartbeat_survives_long_idle() -> None:
+    """T009: SSE stream handles idle periods with heartbeats."""
+    client = TestClient(app)
+    mock_state_active = {
+        "task_id": "test-id",
+        "stage": "PARSING",
+        "status": "ACTIVE",
+    }
+    mock_state_success = {
+        "task_id": "test-id",
+        "stage": "PACKAGING",
+        "status": "SUCCESS",
+    }
+    import time
+    with patch("src.IngestionContext.routers.ProgressTracker") as mock_tracker:
+        mock_tracker.return_value.get = MagicMock(side_effect=[mock_state_active] * 5 + [mock_state_success])
+        
+        with patch("src.config.settings.sse_heartbeat_interval_seconds", 0.05):
+            with patch("src.IngestionContext.routers.asyncio.sleep") as mock_sleep:
+                async def fake_sleep(t):
+                    time.sleep(0.06)
+                mock_sleep.side_effect = fake_sleep
+                
+                with client.stream("GET", "/api/v1/events/test-id") as response:
+                    assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+                    chunks = list(response.iter_text())
+                    
+                    assert any(": heartbeat" in chunk for chunk in chunks)
+                    assert any("SUCCESS" in chunk for chunk in chunks)
